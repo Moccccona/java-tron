@@ -1,9 +1,7 @@
 package org.tron.consensus.dpos;
 
-
-import static org.tron.consensus.base.Constant.SOLIDIFIED_THRESHOLD;
-import static org.tron.core.config.args.Parameter.ChainConstant.MAX_ACTIVE_WITNESS_NUM;
-
+import static org.tron.core.config.Parameter.ChainConstant.MAX_ACTIVE_WITNESS_NUM;
+import static org.tron.core.config.Parameter.ChainConstant.SOLIDIFIED_THRESHOLD;
 import com.google.protobuf.ByteString;
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -14,9 +12,12 @@ import java.util.stream.Collectors;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.http.util.Args;
 import org.joda.time.DateTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
+import org.tron.common.args.GenesisBlock;
+import org.tron.common.parameter.CommonParameter;
 import org.tron.common.utils.ByteArray;
 import org.tron.consensus.ConsensusDelegate;
 import org.tron.consensus.base.BlockHandle;
@@ -25,7 +26,6 @@ import org.tron.consensus.base.Param;
 import org.tron.consensus.base.Param.Miner;
 import org.tron.core.capsule.BlockCapsule;
 import org.tron.core.capsule.WitnessCapsule;
-import org.tron.core.config.args.GenesisBlock;
 
 @Slf4j(topic = "consensus")
 @Component
@@ -95,7 +95,7 @@ public class DposService implements ConsensusInterface {
         consensusDelegate.saveWitness(witnessCapsule);
       });
     }
-
+    maintenanceManager.init();
     dposTask.init();
   }
 
@@ -156,6 +156,7 @@ public class DposService implements ConsensusInterface {
       logger.warn("Update solid block number failed, new: {} < old: {}", newSolidNum, oldSolidNum);
       return;
     }
+    CommonParameter.getInstance().setOldSolidityBlockNum(consensusDelegate.getLatestSolidifiedBlockNum());
     consensusDelegate.saveLatestSolidifiedBlockNum(newSolidNum);
     logger.info("Update solid block number to {}", newSolidNum);
   }

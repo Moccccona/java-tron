@@ -12,7 +12,6 @@ import org.tron.api.GrpcAPI;
 import org.tron.api.GrpcAPI.EasyTransferByPrivateMessage;
 import org.tron.api.GrpcAPI.EasyTransferResponse;
 import org.tron.api.GrpcAPI.Return.response_code;
-import org.tron.common.crypto.ECKey;
 import org.tron.common.crypto.SignInterface;
 import org.tron.common.crypto.SignUtils;
 import org.tron.core.Wallet;
@@ -38,12 +37,10 @@ public class EasyTransferByPrivateServlet extends RateLimiterServlet {
     EasyTransferResponse.Builder responseBuild = EasyTransferResponse.newBuilder();
     boolean visible = false;
     try {
-      String input = request.getReader().lines()
-          .collect(Collectors.joining(System.lineSeparator()));
-      Util.checkBodySize(input);
-      visible = Util.getVisiblePost(input);
+      PostParams params = PostParams.getPostParams(request);
+      visible = params.isVisible();
       EasyTransferByPrivateMessage.Builder build = EasyTransferByPrivateMessage.newBuilder();
-      JsonFormat.merge(input, build, visible);
+      JsonFormat.merge(params.getParams(), build, visible);
       byte[] privateKey = build.getPrivateKey().toByteArray();
       SignInterface ecKey = SignUtils.fromPrivate(privateKey, Args.getInstance()
           .isECKeyCryptoEngine());

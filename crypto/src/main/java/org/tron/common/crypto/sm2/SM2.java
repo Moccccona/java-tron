@@ -1,8 +1,8 @@
 package org.tron.common.crypto.sm2;
 
+import static org.tron.common.crypto.Hash.computeAddress;
 import static org.tron.common.utils.BIUtil.isLessThan;
 import static org.tron.common.utils.ByteUtil.bigIntegerToBytes;
-import static org.tron.common.utils.Hash.computeAddress;
 
 import java.io.IOException;
 import java.io.Serializable;
@@ -23,13 +23,13 @@ import org.spongycastle.asn1.DLSequence;
 import org.spongycastle.asn1.x9.X9IntegerConverter;
 import org.spongycastle.crypto.AsymmetricCipherKeyPair;
 import org.spongycastle.crypto.generators.ECKeyPairGenerator;
+import org.spongycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
+import org.spongycastle.jce.spec.ECParameterSpec;
+import org.spongycastle.jce.spec.ECPrivateKeySpec;
 import org.spongycastle.crypto.params.ECDomainParameters;
 import org.spongycastle.crypto.params.ECKeyGenerationParameters;
 import org.spongycastle.crypto.params.ECPrivateKeyParameters;
 import org.spongycastle.crypto.params.ECPublicKeyParameters;
-import org.spongycastle.jcajce.provider.asymmetric.ec.BCECPrivateKey;
-import org.spongycastle.jce.spec.ECParameterSpec;
-import org.spongycastle.jce.spec.ECPrivateKeySpec;
 import org.spongycastle.math.ec.ECAlgorithms;
 import org.spongycastle.math.ec.ECCurve;
 import org.spongycastle.math.ec.ECPoint;
@@ -1072,6 +1072,364 @@ public class SM2 implements Serializable, SignInterface {
      * @param s -
      * @param v -
      * @return -
+<<<<<<< HEAD
+=======
+     * @deprecated per-point compression property will be removed in Bouncy Castle
+     */
+    public static ECPoint decompressPoint(ECPoint compressed) {
+        return ecc_param.getCurve().decodePoint(compressed.getEncoded(false));
+    }
+
+    /**
+     * Creates an SM2 given the private key only.
+     *
+     * @param privKey -
+     * @return -
+     */
+    public static SM2 fromPrivate(BigInteger privKey) {
+        return new SM2(privKey, ecc_param.getG().multiply(privKey));
+    }
+
+    /**
+     * Creates an SM2 given the private key only.
+     *
+     * @param privKeyBytes -
+     * @return -
+     */
+    public static SM2 fromPrivate(byte[] privKeyBytes) {
+        return fromPrivate(new BigInteger(1, privKeyBytes));
+    }
+
+    /**
+     * Creates an SM2 that simply trusts the caller to ensure that point is really the result of
+     * multiplying the generator point by the private key. This is used to speed things up when you
+     * know you have the right values already. The compression state of pub will be preserved.
+     *
+     * @param priv -
+     * @param pub -
+     * @return -
+     */
+    public static SM2 fromPrivateAndPrecalculatedPublic(BigInteger priv,
+                                                          ECPoint pub) {
+        return new SM2(priv, pub);
+    }
+
+    /**
+     * Creates an SM2 that simply trusts the caller to ensure that point is really the result of
+     * multiplying the generator point by the private key. This is used to speed things up when you
+     * know you have the right values already. The compression state of the point will be preserved.
+     *
+     * @param priv -
+     * @param pub -
+     * @return -
+     */
+    public static SM2 fromPrivateAndPrecalculatedPublic(byte[] priv, byte[]
+            pub) {
+        check(priv != null, "Private key must not be null");
+        check(pub != null, "Public key must not be null");
+        return new SM2(new BigInteger(1, priv), ecc_param.getCurve()
+                .decodePoint(pub));
+    }
+
+    /**
+     * Creates an SM2 that cannot be used for signing, only verifying signatures, from the given
+     * point. The compression state of pub will be preserved.
+     *
+     * @param pub -
+     * @return -
+     */
+    public static SM2 fromPublicOnly(ECPoint pub) {
+        return new SM2((PrivateKey) null, pub);
+    }
+
+    /**
+     * Creates an SM2 that cannot be used for signing, only verifying signatures, from the given
+     * encoded point. The compression state of pub will be preserved.
+     *
+     * @param pub -
+     * @return -
+     */
+    public static SM2 fromPublicOnly(byte[] pub) {
+        return new SM2((PrivateKey) null, ecc_param.getCurve().decodePoint(pub));
+    }
+
+    /**
+     * Returns public key bytes from the given private key. To convert a byte array into a BigInteger,
+     * use <tt> new BigInteger(1, bytes);</tt>
+     *
+     * @param privKey -
+     * @param compressed -
+     * @return -
+     */
+    public static byte[] publicKeyFromPrivate(BigInteger privKey, boolean
+            compressed) {
+        ECPoint point = ecc_param.getG().multiply(privKey);
+        return point.getEncoded(compressed);
+    }
+
+    /**
+     * Compute the encoded X, Y coordinates of a public point. <p> This is the encoded public key
+     * without the leading byte.
+     *
+     * @param pubPoint a public point
+     * @return 64-byte X,Y point pair
+     */
+    public static byte[] pubBytesWithoutFormat(ECPoint pubPoint) {
+        final byte[] pubBytes = pubPoint.getEncoded(/* uncompressed */ false);
+        return Arrays.copyOfRange(pubBytes, 1, pubBytes.length);
+    }
+
+    /**
+     * Recover the public key from an encoded node id.
+     *
+     * @param nodeId a 64-byte X,Y point pair
+     */
+    public static SM2 fromNodeId(byte[] nodeId) {
+        check(nodeId.length == 64, "Expected a 64 byte node id");
+        byte[] pubBytes = new byte[65];
+        System.arraycopy(nodeId, 0, pubBytes, 1, nodeId.length);
+        pubBytes[0] = 0x04; // uncompressed
+        return SM2.fromPublicOnly(pubBytes);
+    }
+
+    public static byte[] signatureToKeyBytes(byte[] messageHash, String
+            signatureBase64) throws SignatureException {
+        byte[] signatureEncoded;
+        try {
+            signatureEncoded = Base64.decode(signatureBase64);
+        } catch (RuntimeException e) {
+            // This is what you getData back from Bouncy Castle if base64 doesn't
+            // decode :(
+            throw new SignatureException("Could not decode base64", e);
+        }
+        // Parse the signature bytes into r/s and the selector value.
+        if (signatureEncoded.length < 65) {
+            throw new SignatureException("Signature truncated, expected 65 " +
+                    "bytes and got " + signatureEncoded.length);
+        }
+
+        return signatureToKeyBytes(
+                messageHash,
+                SM2Signature.fromComponents(
+                        Arrays.copyOfRange(signatureEncoded, 1, 33),
+                        Arrays.copyOfRange(signatureEncoded, 33, 65),
+                        (byte) (signatureEncoded[0] & 0xFF)));
+    }
+
+    public static byte[] signatureToKeyBytes(byte[] messageHash,
+                                             SM2Signature sig) throws
+            SignatureException {
+        check(messageHash.length == 32, "messageHash argument has length " +
+                messageHash.length);
+        int header = sig.v;
+        // The header byte: 0x1B = first key with even y, 0x1C = first key
+        // with odd y,
+        //                  0x1D = second key with even y, 0x1E = second key
+        // with odd y
+        if (header < 27 || header > 34) {
+            throw new SignatureException("Header byte out of range: " + header);
+        }
+        if (header >= 31) {
+            header -= 4;
+        }
+        int recId = header - 27;
+        byte[] key = recoverPubBytesFromSignature(recId, sig,
+                messageHash);
+        if (key == null) {
+            throw new SignatureException("Could not recover public key from " +
+                    "signature");
+        }
+        return key;
+    }
+
+
+
+    public byte[] hash(byte[] message) {
+        SM2Signer signer = this.getSM2SignerForHash();
+        return signer.generateSM3Hash(message);
+    }
+
+    @Override
+    public byte[] getPrivateKey() {
+        return getPrivKeyBytes();
+    }
+
+    /**
+     * Gets the encoded public key value.
+     *
+     * @return 65-byte encoded public key
+     */
+    @Override
+    public byte[] getPubKey() {
+        return pub.getEncoded(/* compressed */ false);
+    }
+
+    /**
+     * Gets the address form of the public key.
+     *
+     * @return 21-byte address
+     */
+    @Override
+    public byte[] getAddress() {
+        if (pubKeyHash == null) {
+            pubKeyHash = computeAddress(this.pub);
+        }
+        return pubKeyHash;
+    }
+
+    @Override
+    public byte[] signToAddress(byte[] messageHash, String
+            signatureBase64) throws SignatureException {
+        return computeAddress(signatureToKeyBytes(messageHash,
+                signatureBase64));
+    }
+
+    /**
+     * Compute the address of the key that signed the given signature.
+     *
+     * @param messageHash 32-byte hash of message
+     * @param signatureBase64 Base-64 encoded signature
+     * @return 20-byte address
+     */
+    public static byte[] signatureToAddress(byte[] messageHash, String
+            signatureBase64) throws SignatureException {
+        return computeAddress(signatureToKeyBytes(messageHash,
+                signatureBase64));
+    }
+
+    /**
+     * Compute the address of the key that signed the given signature.
+     *
+     * @param messageHash 32-byte hash of message
+     * @param sig -
+     * @return 20-byte address
+     */
+    public static byte[] signatureToAddress(byte[] messageHash,
+                                            SM2Signature sig) throws
+            SignatureException {
+        return computeAddress(signatureToKeyBytes(messageHash, sig));
+    }
+
+    /**
+     * Compute the key that signed the given signature.
+     *
+     * @param messageHash 32-byte hash of message
+     * @param signatureBase64 Base-64 encoded signature
+     * @return ECKey
+     */
+    public static SM2 signatureToKey(byte[] messageHash, String
+            signatureBase64) throws SignatureException {
+        final byte[] keyBytes = signatureToKeyBytes(messageHash,
+                signatureBase64);
+        return fromPublicOnly(keyBytes);
+    }
+
+    /**
+     * Compute the key that signed the given signature.
+     *
+     * @param messageHash 32-byte hash of message
+     * @param sig -
+     * @return ECKey
+     */
+    public static SM2 signatureToKey(byte[] messageHash, SM2Signature
+            sig) throws SignatureException {
+        final byte[] keyBytes = signatureToKeyBytes(messageHash, sig);
+        return fromPublicOnly(keyBytes);
+    }
+
+    /**
+     * Takes the SM3 hash (32 bytes) of data and returns the SM2 signature which including the v
+     *
+     * @param messageHash -
+     * @return -
+     * @throws IllegalStateException if this ECKey does not have the private part.
+     */
+    public SM2Signature sign(byte[] messageHash) {
+        if (messageHash.length != 32) {
+            throw new IllegalArgumentException("Expected 32 byte input to " +
+                    "SM2 signature, not " + messageHash.length);
+        }
+        // No decryption of private key required.
+        SM2Signer signer = getSigner();
+        BigInteger[] componets =  signer.generateHashSignature(messageHash);
+        SM2Signature sig = new SM2.SM2Signature(componets[0], componets[1]);
+        // Now we have to work backwards to figure out the recId needed to
+        // recover the signature.
+        int recId = -1;
+        byte[] thisKey = this.pub.getEncoded(/* compressed */ false);
+        for (int i = 0; i < 4; i++) {
+            byte[] k = recoverPubBytesFromSignature(i, sig, messageHash);
+            if (k != null && Arrays.equals(k, thisKey)) {
+                recId = i;
+                break;
+            }
+        }
+        if (recId == -1) {
+            throw new RuntimeException("Could not construct a recoverable key" +
+                    ". This should never happen.");
+        }
+        sig.v = (byte) (recId + 27);
+        return sig;
+    }
+
+    /**
+     * Signs the given hash and returns the R and S components as BigIntegers and putData them in
+     * SM2Signature
+     *
+     * @param input to sign
+     * @return SM2Signature signature that contains the R and S components
+     */
+    public String signHash(byte[] input) {
+        return sign(input).toBase64();
+    }
+
+    public byte[] Base64toBytes (String signature) {
+        byte[] signData = Base64.decode(signature);
+        byte first = (byte)(signData[0] - 27);
+        byte[] temp = Arrays.copyOfRange(signData,1,65);
+        return ByteUtil.appendByte(temp,first);
+    }
+
+    /**
+     * Takes the message of data and returns the SM2 signature
+     *
+     * @param message -
+     * @param userID
+     * @return -
+     * @throws IllegalStateException if this ECKey does not have the private part.
+     */
+    public SM2Signature signMessage(byte[] message, @Nullable String userID) {
+        SM2Signature sig = signMsg(message, userID);
+        // Now we have to work backwards to figure out the recId needed to
+        // recover the signature.
+        int recId = -1;
+        byte[] thisKey = this.pub.getEncoded(/* compressed */ false);
+
+        SM2Signer signer = getSigner();
+        byte[] messageHash = signer.generateSM3Hash(message);
+        for (int i = 0; i < 4; i++) {
+            byte[] k = recoverPubBytesFromSignature(i, sig, messageHash);
+            if (k != null && Arrays.equals(k, thisKey)) {
+                recId = i;
+                break;
+            }
+        }
+        if (recId == -1) {
+            throw new RuntimeException("Could not construct a recoverable key" +
+                    ". This should never happen.");
+        }
+        sig.v = (byte) (recId + 27);
+        return sig;
+    }
+
+    /**
+     * Signs the given hash and returns the R and S components as BigIntegers and putData them in
+     * SM2Signature
+     *
+     * @param msg to sign
+     * @param userID
+     * @return SM2Signature signature that contains the R and S components
+>>>>>>> develop
      */
     public static SM2Signature fromComponents(byte[] r, byte[] s, byte
         v) {
@@ -1152,11 +1510,35 @@ public class SM2 implements Serializable, SignInterface {
       return new String(Base64.encode(sigData), Charset.forName("UTF-8"));
     }
 
+<<<<<<< HEAD
 
     public byte[] toByteArray() {
       final byte fixedV = this.v >= 27
           ? (byte) (this.v - 27)
           : this.v;
+=======
+    /**
+     * Verifies the given ASN.1 encoded SM2 signature against a hash using the public key.
+     *
+     * @param data Hash of the data to verify.
+     * @param signature signature.
+     * @return -
+     */
+    public boolean verify(byte[] data, byte[] signature) {
+        return SM2.verify(data, signature, getPubKey());
+    }
+
+    /**
+     * Verifies the given R/S pair (signature) against a hash using the public key.
+     *
+     * @param sigHash -
+     * @param signature -
+     * @return -
+     */
+    public boolean verify(byte[] sigHash, SM2Signature signature) {
+        return SM2.verify(sigHash, signature, getPubKey());
+    }
+>>>>>>> develop
 
       return ByteUtil.merge(
           ByteUtil.bigIntegerToBytes(this.r, 32),
@@ -1187,9 +1569,177 @@ public class SM2 implements Serializable, SignInterface {
 
     @Override
     public int hashCode() {
+<<<<<<< HEAD
       int result = r.hashCode();
       result = 31 * result + s.hashCode();
       return result;
+=======
+        return Arrays.hashCode(getPubKey());
+    }
+
+
+    public static class SM2Signature implements SignatureInterface {
+
+        /**
+         * The two components of the signature.
+         */
+        public final BigInteger r, s;
+        public byte v;
+
+        /**
+         * Constructs a signature with the given components. Does NOT automatically canonicalise the
+         * signature.
+         *
+         * @param r -
+         * @param s -
+         */
+        public SM2Signature(BigInteger r, BigInteger s) {
+            this.r = r;
+            this.s = s;
+        }
+
+        public SM2Signature(byte[] r, byte[] s, byte v) {
+            this.r = new BigInteger(1, r);
+            this.s = new BigInteger(1,s);
+            this.v = v;
+        }
+
+        /**
+         * t
+         *
+         * @return -
+         */
+        private static SM2.SM2Signature fromComponents(byte[] r, byte[] s) {
+            return new SM2.SM2Signature(new BigInteger(1, r), new BigInteger(1,
+                    s));
+        }
+
+        /**
+         * @param r -
+         * @param s -
+         * @param v -
+         * @return -
+         */
+        public static SM2.SM2Signature fromComponents(byte[] r, byte[] s, byte
+                v) {
+            SM2.SM2Signature signature = fromComponents(r, s);
+            signature.v = v;
+            return signature;
+        }
+
+        public static boolean validateComponents(BigInteger r, BigInteger s,
+                                                 byte v) {
+
+            if (v != 27 && v != 28) {
+                return false;
+            }
+
+            if (isLessThan(r, BigInteger.ONE)) {
+                return false;
+            }
+            if (isLessThan(s, BigInteger.ONE)) {
+                return false;
+            }
+
+            if (!isLessThan(r, SM2.SM2_N)) {
+                return false;
+            }
+            return isLessThan(s, SM2.SM2_N);
+        }
+
+        public static SM2Signature decodeFromDER(byte[] bytes) {
+            ASN1InputStream decoder = null;
+            try {
+                decoder = new ASN1InputStream(bytes);
+                DLSequence seq = (DLSequence) decoder.readObject();
+                if (seq == null) {
+                    throw new RuntimeException("Reached past end of ASN.1 " +
+                            "stream.");
+                }
+                ASN1Integer r, s;
+                try {
+                    r = (ASN1Integer) seq.getObjectAt(0);
+                    s = (ASN1Integer) seq.getObjectAt(1);
+                } catch (ClassCastException e) {
+                    throw new IllegalArgumentException(e);
+                }
+                // OpenSSL deviates from the DER spec by interpreting these
+                // values as unsigned, though they should not be
+                // Thus, we always use the positive versions. See:
+                // http://r6.ca/blog/20111119T211504Z.html
+                return new SM2Signature(r.getPositiveValue(), s
+                        .getPositiveValue());
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            } finally {
+                if (decoder != null) {
+                    try {
+                        decoder.close();
+                    } catch (IOException x) {
+
+                    }
+                }
+            }
+        }
+
+        public boolean validateComponents() {
+            return validateComponents(r, s, v);
+        }
+
+
+        /**
+         * @return -
+         */
+        public String toBase64() {
+            byte[] sigData = new byte[65];  // 1 header + 32 bytes for R + 32
+            // bytes for S
+            sigData[0] = v;
+            System.arraycopy(bigIntegerToBytes(this.r, 32), 0, sigData, 1, 32);
+            System.arraycopy(bigIntegerToBytes(this.s, 32), 0, sigData, 33, 32);
+            return new String(Base64.encode(sigData), Charset.forName("UTF-8"));
+        }
+
+
+
+        public byte[] toByteArray() {
+            final byte fixedV = this.v >= 27
+                    ? (byte) (this.v - 27)
+                    : this.v;
+
+            return ByteUtil.merge(
+                    ByteUtil.bigIntegerToBytes(this.r, 32),
+                    ByteUtil.bigIntegerToBytes(this.s, 32),
+                    new byte[]{fixedV});
+        }
+
+        public String toHex() {
+            return Hex.toHexString(toByteArray());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
+
+            SM2.SM2Signature signature = (SM2.SM2Signature) o;
+
+            if (!r.equals(signature.r)) {
+                return false;
+            }
+            return s.equals(signature.s);
+        }
+
+        @Override
+        public int hashCode() {
+            int result = r.hashCode();
+            result = 31 * result + s.hashCode();
+            return result;
+        }
+>>>>>>> develop
     }
   }
 

@@ -5,15 +5,18 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import lombok.Getter;
+import lombok.extern.slf4j.Slf4j;
+import lombok.extern.slf4j.XSlf4j;
 import org.apache.commons.lang3.ArrayUtils;
 import org.iq80.leveldb.WriteOptions;
+import org.tron.common.parameter.CommonParameter;
 import org.tron.common.storage.leveldb.LevelDbDataSourceImpl;
-import org.tron.common.utils.DBConfig;
+import org.tron.common.utils.StorageUtils;
 import org.tron.core.db.AbstractRevokingStore;
 import org.tron.core.db.RevokingStore;
 import org.tron.core.db2.common.IRevokingDB;
 import org.tron.core.exception.ItemNotFoundException;
-
+@Slf4j
 public class RevokingDBWithCachingOldValue implements IRevokingDB {
 
   private AbstractRevokingStore revokingDatabase;
@@ -26,10 +29,10 @@ public class RevokingDBWithCachingOldValue implements IRevokingDB {
 
   // only for unit test
   public RevokingDBWithCachingOldValue(String dbName, AbstractRevokingStore revokingDatabase) {
-    dbSource = new LevelDbDataSourceImpl(DBConfig.getOutputDirectoryByDbName(dbName),
+    dbSource = new LevelDbDataSourceImpl(StorageUtils.getOutputDirectoryByDbName(dbName),
         dbName,
-        DBConfig.getOptionsByDbName(dbName),
-        new WriteOptions().sync(DBConfig.isDbSync()));
+        StorageUtils.getOptionsByDbName(dbName),
+        new WriteOptions().sync(CommonParameter.getInstance().getStorage().isDbSync()));
     dbSource.initDB();
     this.revokingDatabase = revokingDatabase;
   }
@@ -92,7 +95,12 @@ public class RevokingDBWithCachingOldValue implements IRevokingDB {
   }
 
   @Override
-  public void setMode(boolean mode) {
+  public void setCursor(Chainbase.Cursor cursor) {
+  }
+
+  @Override
+  public void setCursor(Chainbase.Cursor cursor, long offset) {
+
   }
 
   /**

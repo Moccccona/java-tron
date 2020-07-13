@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 package org.tron.core.config.args;
 
 import lombok.Getter;
@@ -39,3 +40,5 @@ public class Parameter {
   }
 
 }
+=======
+>>>>>>> develop

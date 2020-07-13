@@ -1,5 +1,7 @@
 package org.tron.core.services.http;
 
+import static org.tron.core.db.TransactionTrace.convertToTronAddress;
+
 import com.alibaba.fastjson.JSONArray;
 import com.alibaba.fastjson.JSONObject;
 import com.google.protobuf.ByteString;
@@ -14,7 +16,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.tron.api.GrpcAPI.NumberMessage;
 import org.tron.api.GrpcAPI.TransactionInfoList;
-import org.tron.core.vm.utils.MUtil;
 import org.tron.core.Wallet;
 import org.tron.protos.Protocol.TransactionInfo;
 import org.tron.protos.Protocol.TransactionInfo.Log;
@@ -29,7 +30,28 @@ public class GetTransactionInfoByBlockNumServlet extends RateLimiterServlet {
   private JSONObject convertLogAddressToTronAddress(TransactionInfo transactionInfo,
       boolean visible) {
     if (visible) {
+<<<<<<< HEAD
       List<Log> newLogList = Util.convertLogAddressToTronAddress(transactionInfo);
+=======
+      List<Log> newLogList = new ArrayList<>();
+      for (Log log : transactionInfo.getLogList()) {
+        Log.Builder logBuilder = Log.newBuilder();
+        logBuilder.setData(log.getData());
+        logBuilder.addAllTopics(log.getTopicsList());
+
+        byte[] oldAddress = log.getAddress().toByteArray();
+
+        if (oldAddress.length == 0 || oldAddress.length > 20) {
+          logBuilder.setAddress(log.getAddress());
+        } else {
+          byte[] newAddress = new byte[20];
+          int start = 20 - oldAddress.length;
+          System.arraycopy(oldAddress, 0, newAddress, start, oldAddress.length);
+          logBuilder.setAddress(ByteString.copyFrom(convertToTronAddress(newAddress)));
+        }
+        newLogList.add(logBuilder.build());
+      }
+>>>>>>> develop
       transactionInfo = transactionInfo.toBuilder().clearLog().addAllLog(newLogList).build();
     }
 
@@ -67,18 +89,14 @@ public class GetTransactionInfoByBlockNumServlet extends RateLimiterServlet {
 
   protected void doPost(HttpServletRequest request, HttpServletResponse response) {
     try {
-      String input = request.getReader().lines()
-          .collect(Collectors.joining(System.lineSeparator()));
-      Util.checkBodySize(input);
-      boolean visible = Util.getVisiblePost(input);
-
+      PostParams params = PostParams.getPostParams(request);
       NumberMessage.Builder build = NumberMessage.newBuilder();
-      JsonFormat.merge(input, build, visible);
+      JsonFormat.merge(params.getParams(), build, params.isVisible());
 
       long num = build.getNum();
       if (num > 0L) {
         TransactionInfoList reply = wallet.getTransactionInfoByBlockNum(num);
-        response.getWriter().println(printTransactionInfoList(reply, visible));
+        response.getWriter().println(printTransactionInfoList(reply, params.isVisible()));
       } else {
         response.getWriter().println("{}");
       }

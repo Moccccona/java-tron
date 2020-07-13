@@ -12,6 +12,8 @@ import org.springframework.stereotype.Component;
 import org.tron.api.GrpcAPI.BytesMessage;
 import org.tron.common.utils.ByteArray;
 import org.tron.core.Wallet;
+import org.tron.core.db.TransactionTrace;
+import org.tron.core.utils.TransactionUtil;
 import org.tron.core.vm.utils.MUtil;
 import org.tron.protos.Protocol.TransactionInfo;
 import org.tron.protos.Protocol.TransactionInfo.Log;
@@ -27,7 +29,29 @@ public class GetTransactionInfoByIdServlet extends RateLimiterServlet {
   private static String convertLogAddressToTronAddress(TransactionInfo transactionInfo,
       boolean visible) {
     if (visible) {
+<<<<<<< HEAD
       List<Log> newLogList = Util.convertLogAddressToTronAddress(transactionInfo);
+=======
+      List<Log> newLogList = new ArrayList<>();
+      for (Log log : transactionInfo.getLogList()) {
+        Log.Builder logBuilder = Log.newBuilder();
+        logBuilder.setData(log.getData());
+        logBuilder.addAllTopics(log.getTopicsList());
+
+        byte[] oldAddress = log.getAddress().toByteArray();
+        if (oldAddress.length == 0 || oldAddress.length > 20) {
+          logBuilder.setAddress(log.getAddress());
+        } else {
+          byte[] newAddress = new byte[20];
+
+          int start = 20 - oldAddress.length;
+          System.arraycopy(oldAddress, 0, newAddress, start, oldAddress.length);
+          logBuilder.setAddress(ByteString.copyFrom(TransactionTrace
+              .convertToTronAddress(newAddress)));
+        }
+        newLogList.add(logBuilder.build());
+      }
+>>>>>>> develop
       transactionInfo = transactionInfo.toBuilder().clearLog().addAllLog(newLogList).build();
     }
     return JsonFormat.printToString(transactionInfo, visible);

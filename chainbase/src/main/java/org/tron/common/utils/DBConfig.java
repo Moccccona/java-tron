@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 package org.tron.common.utils;
 
 import java.io.File;
@@ -203,3 +204,5 @@ public class DBConfig {
     return dbOptions;
   }
 }
+=======
+>>>>>>> develop

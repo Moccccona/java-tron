@@ -71,7 +71,11 @@ public class TransactionLogTrigger extends Trigger {
   //internal transaction
   @Getter
   @Setter
+<<<<<<< HEAD
   private List<InternalTransactionPojo> internalTrananctionList;
+=======
+  private List<InternalTransactionPojo> internalTransactionList;
+>>>>>>> develop
   @Getter
   @Setter
   private String data;
